@@ -86,7 +86,7 @@ document.querySelectorAll('.color').forEach((el, i) => {
     }
 
     el.addEventListener('change', function () {
-        const colorpicker = document.querySelector('.colorpicker_wrapper');
+        const colorpicker = document.querySelector('.colorpicker__wrapper');
         if (this.value === 'SOLID') {
             colorpicker.classList.add('show');
         } else {
