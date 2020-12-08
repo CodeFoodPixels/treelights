@@ -105,13 +105,15 @@ const rainbow = {
     [240, 0, 31]
   ],
   currentColourIndex: 0,
-  currentColour: rainbow.colors[0]
+  get currentColour() {
+    return rainbow.colors[rainbow.currentColourIndex];
+  }
 };
 
 setInterval(() => {
-  rainbow.currentColourIndex = rainbow.currentColourIndex === rainbow.colors.length ? 0 : rainbow.currentColourIndex + 1;
+  rainbow.currentColourIndex = rainbow.currentColourIndex === rainbow.colors.length - 1 ? 0 : rainbow.currentColourIndex + 1;
   rainbow.currentColour = rainbow.colors[rainbow.currentColourIndex];
-}, 50)
+}, 250);
 
 function init() {
   writeAll(0, 0, 0);
@@ -185,13 +187,13 @@ function fadeCascade(reverse) {
   let offset = 0;
 
   ledInterval = setInterval(() => {
-    const data = [].concat(colours.slice(offset, colours.length), colours.slice(0, offset));
+    const data = [].concat(rainbow.colors.slice(offset, rainbow.colors.length), rainbow.colors.slice(0, offset));
     if (reverse) {
       data.reverse();
     }
     writePixels(data);
-    offset = (offset + 1) % colours.length;
-  }, 50);
+    offset = (offset + 1) % rainbow.colors.length;
+  }, 250);
 }
 
 function fadeBounce() {
@@ -199,10 +201,10 @@ function fadeBounce() {
   let reverse = false;
 
   ledInterval = setInterval(() => {
-    const data = [].concat(colours.slice(offset, colours.length), colours.slice(0, offset));
+    const data = [].concat(rainbow.colors.slice(offset, rainbow.colors.length), rainbow.colors.slice(0, offset));
     writePixels(data);
 
-    if (offset === colours.length) {
+    if (offset === rainbow.colors.length) {
       reverse = true;
     } else if (offset === 0) {
       reverse = false;
@@ -213,36 +215,38 @@ function fadeBounce() {
     } else {
       offset++;
     }
-  }, 50);
+  }, 250);
 }
 
 function fadeOn() {
     const currentState = state.getState();
     let fadeIn = true;
+    let fading = true;
     let brightnessModifier = 0;
 
     const fadeLED = () => {
       if ((brightnessModifier.toFixed(1) == '0.0' && fadeIn === false) || (brightnessModifier.toFixed(1) === '1.0' && fadeIn === true)) {
+        fading = false;
         fadeIn = !fadeIn;
-
-        clearInterval(ledInterval);
 
         const pauseTime = fadeIn ? currentState.offPause : currentState.onPause;
 
         ledTimeout = setTimeout(() => {
-          ledInterval = setInterval(fadeLED, 100);
+          fading = true;
         }, pauseTime);
         return;
       }
 
-      brightnessModifier = fadeIn ? brightnessModifier + 0.1 : brightnessModifier - 0.1;
+      if (fading) {
+        brightnessModifier = fadeIn ? brightnessModifier + 0.1 : brightnessModifier - 0.1;
+      }
 
       const ledColor = currentState.ledColor === 'RAINBOW' ? rainbow.currentColour : hexToRGB(currentState.ledColor);
 
       writeAll(ledColor[0], ledColor[1], ledColor[2], config.brightness * brightnessModifier);
     };
 
-    ledInterval = setInterval(fadeLED, 100);
+    ledInterval = setInterval(fadeLED, 250);
 }
 
 function flashOn() {
@@ -268,9 +272,9 @@ function on() {
   const currentState = state.getState();
   if (currentState.ledColor === 'RAINBOW') {
     ledInterval = setInterval(() => {
-      const ledColor = hexToRGB(rainbow.currentColour);
+      const ledColor = rainbow.currentColour;
       writeAll(ledColor[0], ledColor[1], ledColor[2]);
-    }, 50);
+    }, 250);
   } else {
     const ledColor = hexToRGB(currentState.ledColor);
     writeAll(ledColor[0], ledColor[1], ledColor[2]);
@@ -314,6 +318,10 @@ mqtt.on('disconnected', function () {
   setTimeout(function () {
     mqtt.connect();
   }, 2500);
+});
+
+mqtt.on('disconnected', function (error) {
+  throw error;
 });
 
 WiFi.connect(config.wifi.ssid, {
