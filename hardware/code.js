@@ -51,58 +51,67 @@ const state = {
   }
 };
 
-const colours = [
-  [255, 0, 0],
-  [255, 18, 0],
-  [255, 36, 0],
-  [255, 54, 0],
-  [255, 72, 0],
-  [255, 90, 0],
-  [255, 108, 0],
-  [255, 127, 0],
-  [255, 145, 0],
-  [255, 163, 0],
-  [255, 181, 0],
-  [255, 200, 0],
-  [255, 218, 0],
-  [255, 236, 0],
-  [255, 255, 0],
-  [218, 255, 0],
-  [182, 255, 0],
-  [145, 255, 0],
-  [109, 255, 0],
-  [72, 255, 0],
-  [36, 255, 0],
-  [0, 255, 0],
-  [0, 218, 36],
-  [0, 182, 72],
-  [0, 145, 109],
-  [0, 109, 145],
-  [0, 72, 182],
-  [0, 36, 218],
-  [0, 0, 255],
-  [6, 6, 232],
-  [13, 12, 209],
-  [19, 18, 186],
-  [26, 24, 163],
-  [32, 30, 140],
-  [39, 36, 117],
-  [46, 43, 95],
-  [59, 36, 117],
-  [72, 30, 140],
-  [85, 24, 163],
-  [99, 18, 186],
-  [112, 12, 209],
-  [125, 6, 232],
-  [139, 0, 255],
-  [153, 0, 223],
-  [168, 0, 191],
-  [182, 0, 159],
-  [197, 0, 127],
-  [211, 0, 95],
-  [226, 0, 63],
-  [240, 0, 31]
-];
+const rainbow = {
+  colors: [
+    [255, 0, 0],
+    [255, 18, 0],
+    [255, 36, 0],
+    [255, 54, 0],
+    [255, 72, 0],
+    [255, 90, 0],
+    [255, 108, 0],
+    [255, 127, 0],
+    [255, 145, 0],
+    [255, 163, 0],
+    [255, 181, 0],
+    [255, 200, 0],
+    [255, 218, 0],
+    [255, 236, 0],
+    [255, 255, 0],
+    [218, 255, 0],
+    [182, 255, 0],
+    [145, 255, 0],
+    [109, 255, 0],
+    [72, 255, 0],
+    [36, 255, 0],
+    [0, 255, 0],
+    [0, 218, 36],
+    [0, 182, 72],
+    [0, 145, 109],
+    [0, 109, 145],
+    [0, 72, 182],
+    [0, 36, 218],
+    [0, 0, 255],
+    [6, 6, 232],
+    [13, 12, 209],
+    [19, 18, 186],
+    [26, 24, 163],
+    [32, 30, 140],
+    [39, 36, 117],
+    [46, 43, 95],
+    [59, 36, 117],
+    [72, 30, 140],
+    [85, 24, 163],
+    [99, 18, 186],
+    [112, 12, 209],
+    [125, 6, 232],
+    [139, 0, 255],
+    [153, 0, 223],
+    [168, 0, 191],
+    [182, 0, 159],
+    [197, 0, 127],
+    [211, 0, 95],
+    [226, 0, 63],
+    [240, 0, 31]
+  ],
+  currentColourIndex: 0,
+  currentColour: rainbow.colors[0]
+};
+
+setInterval(() => {
+  rainbow.currentColourIndex = rainbow.currentColourIndex === rainbow.colors.length ? 0 : rainbow.currentColourIndex + 1;
+  rainbow.currentColour = rainbow.colors[rainbow.currentColourIndex];
+}, 50)
 
 function init() {
   writeAll(0, 0, 0);
@@ -172,16 +181,6 @@ function adjustBrightness(i, brightness) {
 let ledInterval;
 let ledTimeout;
 
-function fadeAll() {
-  let offset = 0;
-
-  ledInterval = setInterval(() => {
-    const colour = colours[offset];
-    writeAll(colour[0], colour[1], colour[2]);
-    offset = (offset + 1) % colours.length;
-  }, 1);
-}
-
 function fadeCascade(reverse) {
   let offset = 0;
 
@@ -192,7 +191,7 @@ function fadeCascade(reverse) {
     }
     writePixels(data);
     offset = (offset + 1) % colours.length;
-  }, 1);
+  }, 50);
 }
 
 function fadeBounce() {
@@ -214,7 +213,7 @@ function fadeBounce() {
     } else {
       offset++;
     }
-  }, 1);
+  }, 50);
 }
 
 function fadeOn() {
@@ -238,7 +237,7 @@ function fadeOn() {
 
       brightnessModifier = fadeIn ? brightnessModifier + 0.1 : brightnessModifier - 0.1;
 
-      const ledColor = hexToRGB(currentState.ledColor);
+      const ledColor = currentState.ledColor === 'RAINBOW' ? rainbow.currentColour : hexToRGB(currentState.ledColor);
 
       writeAll(ledColor[0], ledColor[1], ledColor[2], config.brightness * brightnessModifier);
     };
@@ -251,17 +250,32 @@ function flashOn() {
   let ledOn = false;
 
   const ledFlash = () => {
-    const ledColor = hexToRGB(currentState.ledColor);
+    const ledColor = currentState.ledColor === 'RAINBOW' ? rainbow.currentColour : hexToRGB(currentState.ledColor);
+
     writeAll(ledColor[0], ledColor[1], ledColor[2], config.brightness * ledOn);
 
     const pauseTime = ledOn ? currentState.onPause : currentState.offPause;
 
     ledTimeout = setTimeout(ledFlash, pauseTime);
-    
+
     ledOn = !ledOn;
   };
 
   ledTimeout = setTimeout(ledFlash, currentState.offPause);
+}
+
+function on() {
+  const currentState = state.getState();
+  if (currentState.ledColor === 'RAINBOW') {
+    ledInterval = setInterval(() => {
+      const ledColor = hexToRGB(rainbow.currentColour);
+      writeAll(ledColor[0], ledColor[1], ledColor[2]);
+    }, 50);
+  } else {
+    const ledColor = hexToRGB(currentState.ledColor);
+    writeAll(ledColor[0], ledColor[1], ledColor[2]);
+  }
+
 }
 
 init();
@@ -332,12 +346,9 @@ state.subscribe(throttle(() => {
   }
 
   if (currentState.ledStatus === "ON") {
-    const ledColor = hexToRGB(currentState.ledColor);
-    writeAll(ledColor[0], ledColor[1], ledColor[2]);
+    on();
   } else if (currentState.ledStatus === "OFF") {
     writeAll(0, 0, 0);
-  } else if (currentState.ledStatus === "FADE_ALL") {
-    fadeAll();
   } else if (currentState.ledStatus === "FADE_CASCADE") {
     fadeCascade(currentState.ledReverse);
   } else if (currentState.ledStatus === "FADE_BOUNCE") {

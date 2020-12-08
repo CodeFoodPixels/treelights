@@ -71,8 +71,23 @@ document.querySelectorAll('.state').forEach((el, i) => {
             sliders.classList.remove('show');
         }
 
-        const colorpicker = document.querySelector('.colorpicker__wrapper');
+        const colorpicker = document.querySelector('.colors');
         if (this.value === "ON" || this.value === 'FADE_ON' || this.value === 'FLASH_ON') {
+            colorpicker.classList.add('show');
+        } else {
+            colorpicker.classList.remove('show');
+        }
+    });
+});
+
+document.querySelectorAll('.color').forEach((el, i) => {
+    if (i === 0) {
+        el.checked = "checked";
+    }
+
+    el.addEventListener('change', function () {
+        const colorpicker = document.querySelector('.colorpicker_wrapper');
+        if (this.value === 'SOLID') {
             colorpicker.classList.add('show');
         } else {
             colorpicker.classList.remove('show');
@@ -86,7 +101,8 @@ document.querySelector('.tree-form').addEventListener('submit', throttle(functio
     ev.preventDefault();
     const onPause = document.querySelector('.onPause').value;
     const offPause = document.querySelector('.offPause').value;
-    const color = document.querySelector('.colorpicker').value;
+    const color = document.querySelector('.color:checked').value;
+    const colorpicker = document.querySelector('.colorpicker').value;
     const state = document.querySelector('.state:checked').value;
 
     const message = document.querySelector('.message');
@@ -97,7 +113,7 @@ document.querySelector('.tree-form').addEventListener('submit', throttle(functio
         'status',
         JSON.stringify({
             state,
-            color,
+            color: color === 'SOLID' ? colorpicker : color,
             onPause,
             offPause
         }),

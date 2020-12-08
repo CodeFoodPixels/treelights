@@ -32,6 +32,10 @@ a {
     display: none;
 }
 
+.colors {
+    display: none;
+}
+
 .colorpicker__wrapper {
     display: none;
 }
