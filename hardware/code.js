@@ -1,20 +1,21 @@
 const neopixel = require("neopixel");
 const WiFi = require("Wifi");
-const MQTT = require("MQTT");
+const MQTT = require("tinyMQTT");
 
 const config = {
   wifi: {
-    ssid: '',
-    key: ''
+    ssid: 'PLUSNET-XFSR',
+    key: '926a8a26c2'
   },
   mqtt: {
     broker: 'broker.shiftr.io',
     username: 'b349b5b8',
-    password: '2b0eef12e27d76ef'
+    password: '2b0eef12e27d76ef',
+    keep_alive: 5
   },
   pixelPin: NodeMCU.D3,
   numPixels: 50,
-  brightness: 10,
+  brightness: 50,
   onPause: 1000,
   offPause: 1000
 };
@@ -22,7 +23,6 @@ const config = {
 const state = {
   state: {
     ledStatus: 'OFF',
-    ledReverse: false,
     ledColor: 'ffffff'
   },
   listeners: [],
@@ -103,17 +103,12 @@ const rainbow = {
     [211, 0, 95],
     [226, 0, 63],
     [240, 0, 31]
-  ],
-  currentColourIndex: 0,
-  get currentColour() {
-    return rainbow.colors[rainbow.currentColourIndex];
-  }
+  ]
 };
 
 setInterval(() => {
-  rainbow.currentColourIndex = rainbow.currentColourIndex === rainbow.colors.length - 1 ? 0 : rainbow.currentColourIndex + 1;
-  rainbow.currentColour = rainbow.colors[rainbow.currentColourIndex];
-}, 250);
+  rainbow.colors.push(rainbow.colors.shift());
+}, 350);
 
 function init() {
   writeAll(0, 0, 0);
@@ -183,17 +178,23 @@ function adjustBrightness(i, brightness) {
 let ledInterval;
 let ledTimeout;
 
-function fadeCascade(reverse) {
-  let offset = 0;
+function fadeCascade() {
+  ledInterval = setInterval(() => {
+    writePixels(rainbow.colors);
+  }, 350);
+}
+
+function twinkleCascade() {
+  let twinkle = false;
 
   ledInterval = setInterval(() => {
-    const data = [].concat(rainbow.colors.slice(offset, rainbow.colors.length), rainbow.colors.slice(0, offset));
-    if (reverse) {
-      data.reverse();
+    if (twinkle) {
+       writePixels([].concat(rainbow.colors.slice(2, rainbow.colors.length), rainbow.colors.slice(0, 2)));
+    } else {
+      writePixels(rainbow.colors);
     }
-    writePixels(data);
-    offset = (offset + 1) % rainbow.colors.length;
-  }, 250);
+    twinkle = !twinkle;
+  }, 350);
 }
 
 function fadeBounce() {
@@ -215,7 +216,7 @@ function fadeBounce() {
     } else {
       offset++;
     }
-  }, 250);
+  }, 350);
 }
 
 function fadeOn() {
@@ -241,12 +242,12 @@ function fadeOn() {
         brightnessModifier = fadeIn ? brightnessModifier + 0.1 : brightnessModifier - 0.1;
       }
 
-      const ledColor = currentState.ledColor === 'RAINBOW' ? rainbow.currentColour : hexToRGB(currentState.ledColor);
+      const ledColor = currentState.ledColor === 'RAINBOW' ? rainbow.colors[0] : hexToRGB(currentState.ledColor);
 
       writeAll(ledColor[0], ledColor[1], ledColor[2], config.brightness * brightnessModifier);
     };
 
-    ledInterval = setInterval(fadeLED, 250);
+    ledInterval = setInterval(fadeLED, 350);
 }
 
 function flashOn() {
@@ -254,7 +255,7 @@ function flashOn() {
   let ledOn = false;
 
   const ledFlash = () => {
-    const ledColor = currentState.ledColor === 'RAINBOW' ? rainbow.currentColour : hexToRGB(currentState.ledColor);
+    const ledColor = currentState.ledColor === 'RAINBOW' ? rainbow.colors[0] : hexToRGB(currentState.ledColor);
 
     writeAll(ledColor[0], ledColor[1], ledColor[2], config.brightness * ledOn);
 
@@ -272,9 +273,9 @@ function on() {
   const currentState = state.getState();
   if (currentState.ledColor === 'RAINBOW') {
     ledInterval = setInterval(() => {
-      const ledColor = rainbow.currentColour;
+      const ledColor = rainbow.colors[0];
       writeAll(ledColor[0], ledColor[1], ledColor[2]);
-    }, 250);
+    }, 350);
   } else {
     const ledColor = hexToRGB(currentState.ledColor);
     writeAll(ledColor[0], ledColor[1], ledColor[2]);
@@ -288,20 +289,33 @@ let pingInterval;
 
 const mqtt = MQTT.create(config.mqtt.broker, {
   username: config.mqtt.username,
-  password: config.mqtt.password,
-  keep_alive: 10
+  password: config.mqtt.password
 });
 
 mqtt.on('connected', function () {
   console.log('Connected to MQTT');
 
   mqtt.subscribe('status');
+  mqtt.subscribe('pong');
+
+  if (ledInterval) {
+    clearInterval(ledInterval);
+    ledInterval = undefined;
+  }
+
+  if (ledTimeout) {
+    clearTimeout(ledTimeout);
+    ledTimeout = undefined;
+  }
+
+  twinkleCascade();
+
   pingInterval = setInterval(() => {
     mqtt.publish('ping', 'ping');
   }, 5000);
 });
 
-mqtt.on('publish', function (pub) {
+mqtt.on('message', function (pub) {
   if (pub.topic === 'status') {
     try {
       state.dispatch({
@@ -313,20 +327,20 @@ mqtt.on('publish', function (pub) {
 });
 
 mqtt.on('disconnected', function () {
-  console.log('MQTT disconnected, retrying');
+  console.log('MQTT disconnected');
   clearInterval(pingInterval);
   setTimeout(function () {
-    mqtt.connect();
+    console.log('Cycling Wifi');
+    WiFi.disconnect();
   }, 2500);
 });
 
-mqtt.on('disconnected', function (error) {
-  throw error;
-});
-
-WiFi.connect(config.wifi.ssid, {
-  password: config.wifi.key
-});
+function connectWifi() {
+  WiFi.connect(config.wifi.ssid, {
+    password: config.wifi.key
+  });
+}
+connectWifi();
 
 WiFi.on('connected', () => {
   console.log('Connected to wifi');
@@ -334,8 +348,11 @@ WiFi.on('connected', () => {
 });
 
 WiFi.on('disconnected', () => {
-  console.log('Wifi disconnected, rebooting');
-  E.reboot();
+  console.log('Wifi disconnected');
+  setTimeout(function () {
+    console.log('Reconnecting Wifi');
+    connectWifi();
+  }, 2500);
 });
 
 WiFi.stopAP();
@@ -358,7 +375,9 @@ state.subscribe(throttle(() => {
   } else if (currentState.ledStatus === "OFF") {
     writeAll(0, 0, 0);
   } else if (currentState.ledStatus === "FADE_CASCADE") {
-    fadeCascade(currentState.ledReverse);
+    fadeCascade();
+  } else if (currentState.ledStatus === "TWINKLE_CASCADE") {
+    twinkleCascade();
   } else if (currentState.ledStatus === "FADE_BOUNCE") {
     fadeBounce();
   } else if (currentState.ledStatus === "FADE_ON"){

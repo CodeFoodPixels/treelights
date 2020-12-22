@@ -48,6 +48,10 @@ mqttClient.on('offline', noConnection);
 
 mqttClient.on('error', noConnection);
 
+setInterval(() => {
+    mqttClient.publish('pong', 'pong');
+}, 5000);
+
 document.querySelector('.onPause').value = 1000;
 document.querySelector('.onPause').addEventListener('input', function() {
     document.querySelector('.onPauseText').innerHTML = `${this.value/1000} seconds`;
@@ -108,7 +112,12 @@ document.querySelector('.tree-form').addEventListener('submit', throttle(functio
     const message = document.querySelector('.message');
 
     message.innerHTML = 'Sending...'
-
+    console.log(JSON.stringify({
+        state,
+        color: color === 'SOLID' ? colorpicker : color,
+        onPause,
+        offPause
+    }));
     mqttClient.publish(
         'status',
         JSON.stringify({
@@ -118,7 +127,7 @@ document.querySelector('.tree-form').addEventListener('submit', throttle(functio
             offPause
         }),
         {
-            qos: 1
+            qos: 0
         },
         (error) => {
             clearTimeout(messageTimeout);
