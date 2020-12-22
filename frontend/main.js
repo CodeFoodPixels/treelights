@@ -48,10 +48,6 @@ mqttClient.on('offline', noConnection);
 
 mqttClient.on('error', noConnection);
 
-setInterval(() => {
-    mqttClient.publish('pong', 'pong');
-}, 5000);
-
 document.querySelector('.onPause').value = 1000;
 document.querySelector('.onPause').addEventListener('input', function() {
     document.querySelector('.onPauseText').innerHTML = `${this.value/1000} seconds`;
