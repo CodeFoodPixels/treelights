@@ -123,7 +123,7 @@ document.querySelector('.tree-form').addEventListener('submit', throttle(functio
             offPause
         }),
         {
-            qos: 0
+            qos: 1
         },
         (error) => {
             clearTimeout(messageTimeout);

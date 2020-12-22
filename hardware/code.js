@@ -1,6 +1,6 @@
 const neopixel = require("neopixel");
 const WiFi = require("Wifi");
-const MQTT = require("tinyMQTT");
+const MQTT = require("MQTT");
 
 const config = {
   wifi: {
@@ -289,7 +289,8 @@ let pingInterval;
 
 const mqtt = MQTT.create(config.mqtt.broker, {
   username: config.mqtt.username,
-  password: config.mqtt.password
+  password: config.mqtt.password,
+  keep_alive: 10
 });
 
 mqtt.on('connected', function () {
@@ -311,11 +312,11 @@ mqtt.on('connected', function () {
   twinkleCascade();
 
   pingInterval = setInterval(() => {
-    mqtt.publish('ping', 'ping');
+    mqtt.publish('ping', 'ping', { qos : 1, retain : false, dup : false });
   }, 5000);
 });
 
-mqtt.on('message', function (pub) {
+mqtt.on('publish', function (pub) {
   if (pub.topic === 'status') {
     try {
       state.dispatch({
