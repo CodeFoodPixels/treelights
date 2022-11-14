@@ -1,9 +1,14 @@
-const mqttClient = mqtt.connect('mqtts://broker.shiftr.io', {
-    username: 'b349b5b8',
-    password: '2b0eef12e27d76ef',
+const mqttClient = mqtt.connect('wss://home.lukeb.co.uk:8884', {
+    username: 'public',
+    password: 'public',
     connectTimeout: 10000,
     keepalive: 10
 });
+
+const topics = {
+    ping: "public/tree/ping",
+    status: "public/tree/status"
+}
 
 mqttClient.on('connect', () => {
     const status = document.querySelector('.connection-status');
@@ -11,13 +16,13 @@ mqttClient.on('connect', () => {
     status.classList.add('connected');
     status.innerHTML = "You are connected to the server";
 
-    mqttClient.subscribe('ping');
+    mqttClient.subscribe(topics.ping);
 });
 
 let pingTimeout;
 
 mqttClient.on('message', (topic, message) => {
-    if (topic === 'ping') {
+    if (topic === topics.ping) {
         const status = document.querySelector('.tree-status');
 
         clearTimeout(pingTimeout);
@@ -115,7 +120,7 @@ document.querySelector('.tree-form').addEventListener('submit', throttle(functio
         offPause
     }));
     mqttClient.publish(
-        'status',
+        topics.status,
         JSON.stringify({
             state,
             color: color === 'SOLID' ? colorpicker : color,

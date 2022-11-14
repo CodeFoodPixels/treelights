@@ -8,10 +8,13 @@ const config = {
     key: '926a8a26c2'
   },
   mqtt: {
-    broker: 'broker.shiftr.io',
-    username: 'b349b5b8',
-    password: '2b0eef12e27d76ef',
-    keep_alive: 5
+    broker: 'home.lukeb.co.uk:8883',
+    username: 'public',
+    password: 'public',
+    topics: {
+      ping: "public/tree/ping",
+      status: "public/tree/status"
+    }
   },
   pixelPin: NodeMCU.D3,
   numPixels: 50,
@@ -52,59 +55,38 @@ const state = {
 };
 
 const rainbow = {
-  colors: [
+  baseColors: [
     [255, 0, 0],
-    [255, 18, 0],
-    [255, 36, 0],
-    [255, 54, 0],
-    [255, 72, 0],
-    [255, 90, 0],
-    [255, 108, 0],
-    [255, 127, 0],
-    [255, 145, 0],
-    [255, 163, 0],
-    [255, 181, 0],
-    [255, 200, 0],
-    [255, 218, 0],
-    [255, 236, 0],
     [255, 255, 0],
-    [218, 255, 0],
-    [182, 255, 0],
-    [145, 255, 0],
-    [109, 255, 0],
-    [72, 255, 0],
-    [36, 255, 0],
     [0, 255, 0],
-    [0, 218, 36],
-    [0, 182, 72],
-    [0, 145, 109],
-    [0, 109, 145],
-    [0, 72, 182],
-    [0, 36, 218],
+    [0, 255, 255],
     [0, 0, 255],
-    [6, 6, 232],
-    [13, 12, 209],
-    [19, 18, 186],
-    [26, 24, 163],
-    [32, 30, 140],
-    [39, 36, 117],
-    [46, 43, 95],
-    [59, 36, 117],
-    [72, 30, 140],
-    [85, 24, 163],
-    [99, 18, 186],
-    [112, 12, 209],
-    [125, 6, 232],
-    [139, 0, 255],
-    [153, 0, 223],
-    [168, 0, 191],
-    [182, 0, 159],
-    [197, 0, 127],
-    [211, 0, 95],
-    [226, 0, 63],
-    [240, 0, 31]
-  ]
+    [255, 0, 255]
+  ],
+  colors: [],
+  getColors: function() {
+    return this.colors.slice(0, config.numPixels - 1)
+  }
 };
+
+const steps = Math.ceil(config.numPixels / rainbow.baseColors.length);
+
+rainbow.baseColors.forEach((color, i) => {
+  const nextColor = rainbow.baseColors[(i + 1) % rainbow.baseColors.length];
+  const stepSize = {
+    r: (nextColor[0] - color[0]) / steps,
+    g: (nextColor[1] - color[1]) / steps,
+    b: (nextColor[2] - color[2]) / steps
+  }
+
+  for (let a = 0; a < steps; a++) {
+    rainbow.colors.push([
+      Math.min(Math.max(color[0] + Math.round(stepSize.r * a), 0), 255),
+      Math.min(Math.max(color[1] + Math.round(stepSize.g * a), 0), 255),
+      Math.min(Math.max(color[2] + Math.round(stepSize.b * a), 0), 255)
+    ]);
+  }
+})
 
 setInterval(() => {
   rainbow.colors.push(rainbow.colors.shift());
@@ -188,10 +170,11 @@ function twinkleCascade() {
   let twinkle = false;
 
   ledInterval = setInterval(() => {
+    const colors = rainbow.getColors();
     if (twinkle) {
-       writePixels([].concat(rainbow.colors.slice(2, rainbow.colors.length), rainbow.colors.slice(0, 2)));
+       writePixels([].concat(colors.slice(2), colors.slice(0, 2)));
     } else {
-      writePixels(rainbow.colors);
+      writePixels(colors);
     }
     twinkle = !twinkle;
   }, 350);
@@ -202,10 +185,11 @@ function fadeBounce() {
   let reverse = false;
 
   ledInterval = setInterval(() => {
-    const data = [].concat(rainbow.colors.slice(offset, rainbow.colors.length), rainbow.colors.slice(0, offset));
+    const colors = rainbow.getColors();
+    const data = [].concat(colors.slice(offset), colors.slice(0, offset));
     writePixels(data);
 
-    if (offset === rainbow.colors.length) {
+    if (offset === colors.length) {
       reverse = true;
     } else if (offset === 0) {
       reverse = false;
@@ -312,12 +296,12 @@ mqtt.on('connected', function () {
   twinkleCascade();
 
   pingInterval = setInterval(() => {
-    mqtt.publish('ping', 'ping', { qos : 1, retain : false, dup : false });
+    mqtt.publish(config.mqtt.topics.ping, 'ping', { qos : 1, retain : false, dup : false });
   }, 5000);
 });
 
 mqtt.on('publish', function (pub) {
-  if (pub.topic === 'status') {
+  if (pub.topic === config.mqtt.topics.status) {
     try {
       state.dispatch({
         type: 'UPDATE_LED_STATUS',
