@@ -21,21 +21,7 @@ const config = {
   brightness: 50,
   onPause: 1000,
   offPause: 1000,
-};
-
-const state = {
-  ledStatus: "OFF",
-  ledColor: "ffffff",
-  offPause: config.offPause,
-  onPause: config.onPause,
-  ledInterval: 0,
-  ledTimeout: 0,
-  pingInterval: 0,
-  rainbowOffset: 0,
-};
-
-const rainbow = {
-  baseColors: [
+  rainbowBaseColors: [
     [255, 0, 0],
     [255, 255, 0],
     [0, 255, 0],
@@ -43,13 +29,20 @@ const rainbow = {
     [0, 0, 255],
     [255, 0, 255],
   ],
-  colors: [],
-  getColors: function () {
-    return this.colors.slice(0, (config.numPixels - 1) * 3);
-  },
 };
 
-function setup() {
+const state = {
+  ledStatus: "OFF",
+  ledColor: [255, 255, 255],
+  offPause: config.offPause,
+  onPause: config.onPause,
+  ledInterval: 0,
+  ledTimeout: 0,
+  pingInterval: 0,
+  rainbow: [],
+};
+
+function generateRainbow() {
   const steps = Math.ceil(config.numPixels / rainbow.baseColors.length);
 
   rainbow.baseColors.forEach((color, i) => {
@@ -61,15 +54,24 @@ function setup() {
     };
 
     for (let a = 0; a < steps; a++) {
-      rainbow.colors.push(
+      state.rainbow.push(
         Math.min(Math.max(color[0] + Math.round(stepSize.r * a), 0), 255),
         Math.min(Math.max(color[1] + Math.round(stepSize.g * a), 0), 255),
         Math.min(Math.max(color[2] + Math.round(stepSize.b * a), 0), 255)
       );
     }
   });
+}
 
-  process.memory();
+function updateRainbow(reverse) {
+  if (reverse) {
+    return Array.prototype.unshift.apply(
+      state.rainbow,
+      state.rainbow.splice(-3, 3)
+    );
+  }
+
+  return Array.prototype.push.apply(state.rainbow, state.rainbow.splice(0, 3));
 }
 
 function throttle(func, limit) {
@@ -126,94 +128,43 @@ function adjustBrightness(i, brightness) {
   return Math.round((i / 100) * brightness);
 }
 
-function fadeCascade() {
-  ledInterval = setInterval(() => {
-    writePixels(rainbow.colors);
-  }, 350);
-}
-
-function twinkleCascade() {
-  let twinkle = false;
-
-  ledInterval = setInterval(() => {
-    const colors = rainbow.getColors();
-    if (twinkle) {
-      writePixels([].concat(colors.slice(2), colors.slice(0, 2)));
-    } else {
-      writePixels(colors);
-    }
-    twinkle = !twinkle;
-  }, 350);
-}
-
-function fadeBounce() {
-  let offset = 0;
-  let reverse = false;
-
-  ledInterval = setInterval(() => {
-    const colors = rainbow.getColors();
-    const data = [].concat(colors.slice(offset), colors.slice(0, offset));
-    writePixels(data);
-
-    if (offset === colors.length) {
-      reverse = true;
-    } else if (offset === 0) {
-      reverse = false;
-    }
-
-    if (reverse) {
-      offset--;
-    } else {
-      offset++;
-    }
-  }, 350);
-}
-
-function fadeOn() {
-  const currentState = state.getState();
-}
-
-function flashOn() {
-  const currentState = state.getState();
-  let ledOn = false;
-
-  const ledFlash = () => {
-    const ledColor =
-      currentState.ledColor === "RAINBOW"
-        ? rainbow.colors[0]
-        : hexToRGB(currentState.ledColor);
-
-    writeAll(ledColor[0], ledColor[1], ledColor[2], config.brightness * ledOn);
-
-    const pauseTime = ledOn ? currentState.onPause : currentState.offPause;
-
-    ledTimeout = setTimeout(ledFlash, pauseTime);
-
-    ledOn = !ledOn;
-  };
-
-  ledTimeout = setTimeout(ledFlash, currentState.offPause);
-}
-
 const ledPatterns = {
   on: () => {
     if (state.ledColor === "RAINBOW") {
-      state.rainbowOffset = 0;
       state.ledInterval = setInterval(() => {
-        writeAll(
-          rainbow.colors[state.rainbowOffset + 0],
-          rainbow.colors[state.rainbowOffset + 1],
-          rainbow.colors[state.rainbowOffset + 2]
-        );
-        state.rainbowOffset = (state.rainbowOffset + 3) % rainbow.colors.length;
+        writeAll(state.rainbow[0], state.rainbow[1], state.rainbow[2]);
+        updateRainbow();
       }, 350);
     } else {
-      const ledColor = hexToRGB(state.ledColor);
-      writeAll(ledColor[0], ledColor[1], ledColor[2]);
+      writeAll(state.ledColor[0], state.ledColor[1], state.ledColor[2]);
     }
   },
   off: () => {
     writeAll(0, 0, 0);
+  },
+  cascade: () => {
+    ledInterval = setInterval(() => {
+      writePixels(rainbow.colors);
+      updateRainbow();
+    }, 350);
+  },
+  bounce: () => {
+    let offset = 0;
+    let reverse = false;
+
+    ledInterval = setInterval(() => {
+      writePixels(state.rainbow);
+
+      if (offset === state.rainbow.length - 1) {
+        reverse = true;
+      } else if (offset === 0) {
+        reverse = false;
+      }
+
+      offset = reverse ? offset - 3 : offset + 3;
+
+      updateRainbow(reverse);
+    }, 350);
   },
   fadeOn: () => {
     let fadeIn = true;
@@ -228,11 +179,12 @@ const ledPatterns = {
         fading = false;
         fadeIn = !fadeIn;
 
-        const pauseTime = fadeIn ? state.offPause : state.onPause;
-
-        ledTimeout = setTimeout(() => {
-          fading = true;
-        }, pauseTime);
+        ledTimeout = setTimeout(
+          () => {
+            fading = true;
+          },
+          fadeIn ? state.offPause : state.onPause
+        );
         return;
       }
 
@@ -242,25 +194,48 @@ const ledPatterns = {
           : brightnessModifier - 0.1;
       }
 
-      const ledColor =
-        state.ledColor === "RAINBOW"
-          ? rainbow.colors[0]
-          : hexToRGB(state.ledColor);
-
-      writeAll(
-        ledColor[0],
-        ledColor[1],
-        ledColor[2],
-        config.brightness * brightnessModifier
-      );
+      if (state.ledColor === "RAINBOW") {
+        writeAll(
+          state.rainbow[0],
+          state.rainbow[1],
+          state.rainbow[2],
+          config.brightness * brightnessModifier
+        );
+        updateRainbow();
+      } else {
+        writeAll(
+          state.ledColor[0],
+          state.ledColor[1],
+          state.ledColor[2],
+          config.brightness * brightnessModifier
+        );
+      }
     };
 
     state.ledInterval = setInterval(fadeLED, 350);
   },
-  fadeCascade: () => {},
-  fadeBounce: () => {},
-  flashOn: () => {},
-  twinkleCascade: () => {},
+  flashOn: () => {
+    let ledOn = false;
+
+    const ledFlash = () => {
+      if (ledOn) {
+        if (state.ledColor === "RAINBOW") {
+          writeAll(state.rainbow[0], state.rainbow[1], state.rainbow[2]);
+          updateRainbow();
+        } else {
+          writeAll(state.ledColor[0], state.ledColor[1], state.ledColor[2]);
+        }
+      } else {
+        writeAll(0, 0, 0);
+      }
+
+      ledTimeout = setTimeout(ledFlash, ledOn ? state.onPause : state.offPause);
+
+      ledOn = !ledOn;
+    };
+
+    ledTimeout = setTimeout(ledFlash, state.offPause);
+  },
 };
 
 const updateLights = throttle(() => {
@@ -275,23 +250,23 @@ const updateLights = throttle(() => {
   }
 
   if (state.ledStatus === "ON") {
-    on();
+    ledPatterns.on();
   } else if (state.ledStatus === "OFF") {
-    writeAll(0, 0, 0);
-  } else if (state.ledStatus === "FADE_CASCADE") {
-    fadeCascade();
-  } else if (state.ledStatus === "TWINKLE_CASCADE") {
-    twinkleCascade();
-  } else if (state.ledStatus === "FADE_BOUNCE") {
-    fadeBounce();
+    ledPatterns.off();
+  } else if (state.ledStatus === "CASCADE") {
+    ledPatterns.cascade();
+  } else if (state.ledStatus === "BOUNCE") {
+    ledPatterns.bounce();
   } else if (state.ledStatus === "FADE_ON") {
-    fadeOn();
+    ledPatterns.fadeOn();
   } else if (state.ledStatus === "FLASH_ON") {
-    flashOn();
+    ledPatterns.flashOn();
   }
 }, 1000);
 
-setup();
+writeAll(0, 0, 0);
+generateRainbow();
+process.memory();
 
 const mqtt = MQTT.create(config.mqtt.broker, {
   username: config.mqtt.username,
@@ -302,20 +277,11 @@ const mqtt = MQTT.create(config.mqtt.broker, {
 mqtt.on("connected", function () {
   console.log("Connected to MQTT");
 
-  mqtt.subscribe("status");
-  mqtt.subscribe("pong");
+  mqtt.subscribe(config.mqtt.topics.status);
 
-  if (ledInterval) {
-    clearInterval(ledInterval);
-    ledInterval = undefined;
-  }
+  state.ledStatus = "CASCADE";
 
-  if (ledTimeout) {
-    clearTimeout(ledTimeout);
-    ledTimeout = undefined;
-  }
-
-  twinkleCascade();
+  updateLights();
 
   state.pingInterval = setInterval(() => {
     mqtt.publish(config.mqtt.topics.ping, "ping", {
@@ -328,15 +294,16 @@ mqtt.on("connected", function () {
 
 mqtt.on("publish", function (pub) {
   if (pub.topic === config.mqtt.topics.status) {
-    state.ledStatus = action.data.state;
-    state.ledReverse = action.data.reverse || false;
-    state.ledColor = action.data.color || "ffffff";
+    const message = JSON.parse(pub.message);
+    state.ledStatus = message.state;
+    state.ledColor =
+      message.color === "RAINBOW" ? "RAINBOW" : hexToRGB(message.color);
     state.onPause = Math.min(
-      Math.max(parseInt(action.data.onPause, 10) || config.onPause, 200),
+      Math.max(parseInt(message.onPause, 10) || config.onPause, 200),
       2000
     );
     state.offPause = Math.min(
-      Math.max(parseInt(action.data.offPause, 10) || config.offPause, 200),
+      Math.max(parseInt(message.offPause, 10) || config.offPause, 200),
       2000
     );
 
@@ -374,4 +341,3 @@ WiFi.on("disconnected", () => {
 });
 
 WiFi.stopAP();
-writeAll(0, 0, 0);

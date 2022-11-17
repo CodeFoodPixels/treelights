@@ -1,101 +1,166 @@
 <!DOCTYPE html>
 <html>
-<head>
+  <head>
     <meta charset="utf-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <title>Luke and Donna's Internet Connected Christmas Tree!</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" type="text/css" media="screen" href="main.css" />
-</head>
-<body>
+  </head>
+  <body>
     <div class="wrapper">
-        <h1>Luke and Donna's Internet Connected Christmas Tree!</h1>
-        <p>Pick a light mode, change any settings and hit send!</p>
+      <h1>Luke and Donna's Internet Connected Christmas Tree!</h1>
+      <p>Pick a light mode, change any settings and hit send!</p>
 
-        <div class="connection-status">You are disconnected</div>
-        <div class="tree-status">The tree is offline</div>
+      <div class="connection-status">You are disconnected</div>
+      <div class="tree-status">The tree is offline</div>
 
-        <form class="tree-form">
-            <p>Light mode:</p>
-            <div class="input-group">
-                <div>
-                    <input type="radio" id="off" name="state" value="OFF" class="state" checked>
-                    <label for="off">Off</label>
-                </div>
+      <form class="tree-form">
+        <p>Light mode:</p>
+        <div class="input-group">
+          <div>
+            <input
+              type="radio"
+              id="off"
+              name="state"
+              value="OFF"
+              class="state"
+              checked
+            />
+            <label for="off">Off</label>
+          </div>
 
-                <div>
-                    <input type="radio" id="on" name="state" value="ON" class="state">
-                    <label for="on">On</label>
-                </div>
+          <div>
+            <input type="radio" id="on" name="state" value="ON" class="state" />
+            <label for="on">On</label>
+          </div>
 
-                <div>
-                    <input type="radio" id="fade_cascade" name="state" value="FADE_CASCADE" class="state">
-                    <label for="fade_cascade">Cascading rainbow fade</label>
-                </div>
+          <div>
+            <input
+              type="radio"
+              id="cascade"
+              name="state"
+              value="CASCADE"
+              class="state"
+            />
+            <label for="cascade">Cascading rainbow</label>
+          </div>
 
-                <div>
-                    <input type="radio" id="twinkle_cascade" name="state" value="TWINKLE_CASCADE" class="state">
-                    <label for="twinkle_cascade">Twinkling rainbow fade</label>
-                </div>
+          <div>
+            <input
+              type="radio"
+              id="bounce"
+              name="state"
+              value="BOUNCE"
+              class="state"
+            />
+            <label for="bounce">Bouncing rainbow</label>
+          </div>
 
-                <div>
-                    <input type="radio" id="fade_bounce" name="state" value="FADE_BOUNCE" class="state">
-                    <label for="fade_bounce">Bouncing rainbow fade</label>
-                </div>
+          <div>
+            <input
+              type="radio"
+              id="flash"
+              name="state"
+              value="FLASH_ON"
+              class="state"
+            />
+            <label for="flash">Flash on/off</label>
+          </div>
 
-                <div>
-                    <input type="radio" id="flash" name="state" value="FLASH_ON" class="state">
-                    <label for="flash">Flash on/off</label>
-                </div>
+          <div>
+            <input
+              type="radio"
+              id="fade"
+              name="state"
+              value="FADE_ON"
+              class="state"
+            />
+            <label for="fade">Fade on/off</label>
+          </div>
+        </div>
 
-                <div>
-                    <input type="radio" id="fade" name="state" value="FADE_ON" class="state">
-                    <label for="fade">Fade on/off</label>
-                </div>
-            </div>
+        <div class="colors input-group">
+          <p>Light Colour:</p>
+          <div>
+            <input
+              type="radio"
+              id="rainbow"
+              name="color"
+              value="RAINBOW"
+              class="color"
+            />
+            <label for="rainbow">Rainbow</label>
+          </div>
+          <div>
+            <input
+              type="radio"
+              id="solid"
+              name="color"
+              value="SOLID"
+              class="color"
+            />
+            <label for="solid">Solid color</label>
+          </div>
+        </div>
 
-            <div class="colors input-group">
-                <p>Light Colour:</p>
-                <div>
-                    <input type="radio" id="rainbow" name="color" value="RAINBOW" class="color">
-                    <label for="rainbow">Rainbow</label>
-                </div>
-                <div>
-                    <input type="radio" id="solid" name="color" value="SOLID" class="color">
-                    <label for="solid">Solid color</label>
-                </div>
-            </div>
+        <div class="input-group colorpicker__wrapper">
+          <label for="colorpicker">Color: </label><br />
+          <input
+            type="color"
+            name="colorpicker"
+            id="colorpicker"
+            class="colorpicker"
+            value="#ffffff"
+          />
+        </div>
 
-            <div class="input-group colorpicker__wrapper">
-                <label for="colorpicker">Color: </label><br />
-                <input type="color" name="colorpicker" id="colorpicker" class="colorpicker" value="#ffffff" />
-            </div>
+        <div class="sliders">
+          <div class="input-group">
+            <label for="onPause">Pause while on for: </label><br />
+            <input
+              type="range"
+              min="200"
+              max="2000"
+              step="100"
+              name="onPause"
+              value="1000"
+              class="onPause"
+            />
+            <span class="onPauseText">1 second</span>
+          </div>
 
-            <div class="sliders">
-                <div class="input-group">
-                    <label for="onPause">Pause while on for: </label><br />
-                    <input type="range" min="200" max="2000" step="100" name="onPause" value="1000" class="onPause" />
-                    <span class="onPauseText">1 second</span>
-                </div>
+          <div class="input-group">
+            <label for="offPause">Pause while off for: </label><br />
+            <input
+              type="range"
+              min="200"
+              max="2000"
+              step="100"
+              name="offPause"
+              value="1000"
+              class="offPause"
+            />
+            <span class="offPauseText">1 second</span>
+          </div>
+        </div>
 
-                <div class="input-group">
-                    <label for="offPause">Pause while off for: </label><br />
-                    <input type="range" min="200" max="2000" step="100" name="offPause" value="1000" class="offPause" />
-                    <span class="offPauseText">1 second</span>
-                </div>
-            </div>
-
-            <button type="submit" class="submit" disabled>Send!</button>
-            <div class="message">&nbsp;</div>
-            <p>
-                Made by <a href="https://twitter.com/codefoodpixels" target="_blank">@CodeFoodPixels</a>
-            </p>
-            <!-- <p>
-                <a href="https://github.com/lukeb-uk/tree-lights" target="_blank">View source on GitHub</a>
-            </p> -->
-        </form>
+        <button type="submit" class="submit" disabled>Send!</button>
+        <div class="message">&nbsp;</div>
+        <p>
+          Made by
+          <a href="https://twitter.com/codefoodpixels" target="_blank"
+            >Luke Bonaccorsi</a
+          >
+        </p>
+        <p>
+          <a href="https://github.com/codefoodpixels/treelights" target="_blank"
+            >View source on GitHub</a
+          >
+        </p>
+      </form>
     </div>
     <script src="mqtt.min.js"></script>
     <script src="main.js"></script>
-</body>
+  </body>
 </html>
