@@ -1,14 +1,14 @@
 const neopixel = require("neopixel");
 const WiFi = require("Wifi");
-const MQTT = require("MQTT");
+const MQTT = require("tinyMQTT");
 
 const config = {
   wifi: {
-    ssid: "PLUSNET-XFSR",
-    key: "926a8a26c2",
+    ssid: "",
+    key: "",
   },
   mqtt: {
-    broker: "home.lukeb.co.uk:8883",
+    broker: "home.lukeb.co.uk",
     username: "public",
     password: "public",
     topics: {
@@ -17,8 +17,9 @@ const config = {
     },
   },
   pixelPin: NodeMCU.D3,
-  numPixels: 50,
-  brightness: 50,
+  numPixels: 250,
+  brightness: 20,
+  updateTime: 50,
   onPause: 1000,
   offPause: 1000,
   rainbowBaseColors: [
@@ -43,21 +44,20 @@ const state = {
 };
 
 function generateRainbow() {
-  const steps = Math.ceil(config.numPixels / rainbow.baseColors.length);
-
-  rainbow.baseColors.forEach((color, i) => {
-    const nextColor = rainbow.baseColors[(i + 1) % rainbow.baseColors.length];
+  const steps = Math.ceil(config.numPixels / config.rainbowBaseColors.length);
+  config.rainbowBaseColors.forEach((color, i) => {
+    const nextColor =
+      config.rainbowBaseColors[(i + 1) % config.rainbowBaseColors.length];
     const stepSize = {
       r: (nextColor[0] - color[0]) / steps,
       g: (nextColor[1] - color[1]) / steps,
       b: (nextColor[2] - color[2]) / steps,
     };
-
     for (let a = 0; a < steps; a++) {
       state.rainbow.push(
-        Math.min(Math.max(color[0] + Math.round(stepSize.r * a), 0), 255),
-        Math.min(Math.max(color[1] + Math.round(stepSize.g * a), 0), 255),
-        Math.min(Math.max(color[2] + Math.round(stepSize.b * a), 0), 255)
+        color[0] + Math.round(stepSize.r * a),
+        color[1] + Math.round(stepSize.g * a),
+        color[2] + Math.round(stepSize.b * a)
       );
     }
   });
@@ -65,13 +65,12 @@ function generateRainbow() {
 
 function updateRainbow(reverse) {
   if (reverse) {
-    return Array.prototype.unshift.apply(
-      state.rainbow,
-      state.rainbow.splice(-3, 3)
-    );
+    const colors = state.rainbow.splice(-3, 3);
+    return state.rainbow.unshift(colors[0], colors[1], colors[2]);
   }
 
-  return Array.prototype.push.apply(state.rainbow, state.rainbow.splice(0, 3));
+  const colors = state.rainbow.splice(0, 3);
+  return state.rainbow.push(colors[0], colors[1], colors[2]);
 }
 
 function throttle(func, limit) {
@@ -105,13 +104,13 @@ function writeAll(r, g, b, brightness) {
   if (brightness === undefined) {
     brightness = config.brightness;
   }
-  const data = [];
-  for (let i = 0; i < config.numPixels; i++) {
-    data.push(
-      adjustBrightness(g, brightness),
-      adjustBrightness(r, brightness),
-      adjustBrightness(b, brightness)
-    );
+  const data = [
+    adjustBrightness(g, brightness),
+    adjustBrightness(r, brightness),
+    adjustBrightness(b, brightness),
+  ];
+  for (let i = 1; i < config.numPixels; i++) {
+    data.push(data[0], data[1], data[2]);
   }
   neopixel.write(config.pixelPin, data);
 }
@@ -120,8 +119,11 @@ function writePixels(pixelColours, brightness) {
   if (brightness === undefined) {
     brightness = config.brightness;
   }
-  pixelColours.map((pixelColours) => adjustBrightness(pixel, brightness));
-  neopixel.write(config.pixelPin, data);
+
+  neopixel.write(
+    config.pixelPin,
+    pixelColours.map((pixel) => adjustBrightness(pixel, brightness))
+  );
 }
 
 function adjustBrightness(i, brightness) {
@@ -134,7 +136,7 @@ const ledPatterns = {
       state.ledInterval = setInterval(() => {
         writeAll(state.rainbow[0], state.rainbow[1], state.rainbow[2]);
         updateRainbow();
-      }, 350);
+      }, config.updateTime);
     } else {
       writeAll(state.ledColor[0], state.ledColor[1], state.ledColor[2]);
     }
@@ -143,16 +145,16 @@ const ledPatterns = {
     writeAll(0, 0, 0);
   },
   cascade: () => {
-    ledInterval = setInterval(() => {
-      writePixels(rainbow.colors);
+    state.ledInterval = setInterval(() => {
+      writePixels(state.rainbow);
       updateRainbow();
-    }, 350);
+    }, config.updateTime);
   },
   bounce: () => {
     let offset = 0;
     let reverse = false;
 
-    ledInterval = setInterval(() => {
+    state.ledInterval = setInterval(() => {
       writePixels(state.rainbow);
 
       if (offset === state.rainbow.length - 1) {
@@ -164,7 +166,7 @@ const ledPatterns = {
       offset = reverse ? offset - 3 : offset + 3;
 
       updateRainbow(reverse);
-    }, 350);
+    }, config.updateTime);
   },
   fadeOn: () => {
     let fadeIn = true;
@@ -212,7 +214,7 @@ const ledPatterns = {
       }
     };
 
-    state.ledInterval = setInterval(fadeLED, 350);
+    state.ledInterval = setInterval(fadeLED, config.updateTime);
   },
   flashOn: () => {
     let ledOn = false;
@@ -229,7 +231,10 @@ const ledPatterns = {
         writeAll(0, 0, 0);
       }
 
-      ledTimeout = setTimeout(ledFlash, ledOn ? state.onPause : state.offPause);
+      state.ledTimeout = setTimeout(
+        ledFlash,
+        ledOn ? state.onPause : state.offPause
+      );
 
       ledOn = !ledOn;
     };
@@ -271,7 +276,6 @@ process.memory();
 const mqtt = MQTT.create(config.mqtt.broker, {
   username: config.mqtt.username,
   password: config.mqtt.password,
-  keep_alive: 10,
 });
 
 mqtt.on("connected", function () {
@@ -284,26 +288,23 @@ mqtt.on("connected", function () {
   updateLights();
 
   state.pingInterval = setInterval(() => {
-    mqtt.publish(config.mqtt.topics.ping, "ping", {
-      qos: 1,
-      retain: false,
-      dup: false,
-    });
+    mqtt.publish(config.mqtt.topics.ping, "ping");
   }, 5000);
 });
 
-mqtt.on("publish", function (pub) {
+mqtt.on("message", function (pub) {
   if (pub.topic === config.mqtt.topics.status) {
-    const message = JSON.parse(pub.message);
-    state.ledStatus = message.state;
+    const message = pub.message.split(",");
+    console.log(message);
+    state.ledStatus = message[0];
     state.ledColor =
-      message.color === "RAINBOW" ? "RAINBOW" : hexToRGB(message.color);
+      message[1] === "RAINBOW" ? "RAINBOW" : hexToRGB(message[1]);
     state.onPause = Math.min(
-      Math.max(parseInt(message.onPause, 10) || config.onPause, 200),
+      Math.max(parseInt(message[2], 10) || config.onPause, 200),
       2000
     );
     state.offPause = Math.min(
-      Math.max(parseInt(message.offPause, 10) || config.offPause, 200),
+      Math.max(parseInt(message[3], 10) || config.offPause, 200),
       2000
     );
 
@@ -313,7 +314,7 @@ mqtt.on("publish", function (pub) {
 
 mqtt.on("disconnected", function () {
   console.log("MQTT disconnected");
-  clearInterval(pingInterval);
+  clearInterval(state.pingInterval);
   setTimeout(function () {
     console.log("Cycling Wifi");
     WiFi.disconnect();
