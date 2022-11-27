@@ -17,9 +17,9 @@ const config = {
     },
   },
   pixelPin: NodeMCU.D3,
-  numPixels: 250,
+  numPixels: 100,
   brightness: 20,
-  updateTime: 50,
+  timerValue: 100,
   onPause: 1000,
   offPause: 1000,
   rainbowBaseColors: [
@@ -45,6 +45,11 @@ const state = {
 
 function generateRainbow() {
   const steps = Math.ceil(config.numPixels / config.rainbowBaseColors.length);
+
+  state.rainbow = new Uint8ClampedArray(
+    steps * config.rainbowBaseColors.length * 3
+  );
+
   config.rainbowBaseColors.forEach((color, i) => {
     const nextColor =
       config.rainbowBaseColors[(i + 1) % config.rainbowBaseColors.length];
@@ -54,23 +59,25 @@ function generateRainbow() {
       b: (nextColor[2] - color[2]) / steps,
     };
     for (let a = 0; a < steps; a++) {
-      state.rainbow.push(
-        color[0] + Math.round(stepSize.r * a),
-        color[1] + Math.round(stepSize.g * a),
-        color[2] + Math.round(stepSize.b * a)
-      );
+      const baseIndex = (i * steps + a) * 3;
+      state.rainbow[baseIndex] = color[0] + Math.round(stepSize.r * a);
+      state.rainbow[baseIndex + 1] = color[1] + Math.round(stepSize.g * a);
+      state.rainbow[baseIndex + 2] = color[2] + Math.round(stepSize.b * a);
     }
   });
 }
 
 function updateRainbow(reverse) {
   if (reverse) {
-    const colors = state.rainbow.splice(-3, 3);
-    return state.rainbow.unshift(colors[0], colors[1], colors[2]);
+    const colors = state.rainbow.slice(-3);
+    state.rainbow.set(state.rainbow.subarray(0, state.rainbow.length - 3), 3);
+    state.rainbow.set(colors, state.rainbow.length - 3);
+    return;
   }
 
-  const colors = state.rainbow.splice(0, 3);
-  return state.rainbow.push(colors[0], colors[1], colors[2]);
+  const colors = state.rainbow.slice(0, 3);
+  state.rainbow.set(state.rainbow.subarray(3));
+  state.rainbow.set(colors, state.rainbow.length - 3);
 }
 
 function throttle(func, limit) {
@@ -104,13 +111,12 @@ function writeAll(r, g, b, brightness) {
   if (brightness === undefined) {
     brightness = config.brightness;
   }
-  const data = [
-    adjustBrightness(g, brightness),
-    adjustBrightness(r, brightness),
-    adjustBrightness(b, brightness),
-  ];
-  for (let i = 1; i < config.numPixels; i++) {
-    data.push(data[0], data[1], data[2]);
+  const data = new Uint8ClampedArray(config.numPixels * 3);
+  data[0] = adjustBrightness(g, brightness);
+  data[1] = adjustBrightness(r, brightness);
+  data[2] = adjustBrightness(b, brightness);
+  for (let i = 3; i < config.numPixels * 3; i++) {
+    data[i] = data[i % 3];
   }
   neopixel.write(config.pixelPin, data);
 }
@@ -136,7 +142,8 @@ const ledPatterns = {
       state.ledInterval = setInterval(() => {
         writeAll(state.rainbow[0], state.rainbow[1], state.rainbow[2]);
         updateRainbow();
-      }, config.updateTime);
+        process.memory();
+      }, config.timerValue);
     } else {
       writeAll(state.ledColor[0], state.ledColor[1], state.ledColor[2]);
     }
@@ -148,7 +155,8 @@ const ledPatterns = {
     state.ledInterval = setInterval(() => {
       writePixels(state.rainbow);
       updateRainbow();
-    }, config.updateTime);
+      process.memory();
+    }, config.timerValue);
   },
   bounce: () => {
     let offset = 0;
@@ -166,7 +174,8 @@ const ledPatterns = {
       offset = reverse ? offset - 3 : offset + 3;
 
       updateRainbow(reverse);
-    }, config.updateTime);
+      process.memory();
+    }, config.timerValue);
   },
   fadeOn: () => {
     let fadeIn = true;
@@ -187,7 +196,6 @@ const ledPatterns = {
           },
           fadeIn ? state.offPause : state.onPause
         );
-        return;
       }
 
       if (fading) {
@@ -204,6 +212,7 @@ const ledPatterns = {
           config.brightness * brightnessModifier
         );
         updateRainbow();
+        process.memory();
       } else {
         writeAll(
           state.ledColor[0],
@@ -214,7 +223,7 @@ const ledPatterns = {
       }
     };
 
-    state.ledInterval = setInterval(fadeLED, config.updateTime);
+    state.ledInterval = setInterval(fadeLED, config.timerValue);
   },
   flashOn: () => {
     let ledOn = false;
@@ -223,7 +232,6 @@ const ledPatterns = {
       if (ledOn) {
         if (state.ledColor === "RAINBOW") {
           writeAll(state.rainbow[0], state.rainbow[1], state.rainbow[2]);
-          updateRainbow();
         } else {
           writeAll(state.ledColor[0], state.ledColor[1], state.ledColor[2]);
         }
@@ -239,7 +247,14 @@ const ledPatterns = {
       ledOn = !ledOn;
     };
 
-    ledTimeout = setTimeout(ledFlash, state.offPause);
+    if (state.ledColor === "RAINBOW") {
+      state.ledInterval = setInterval(() => {
+        updateRainbow();
+        process.memory();
+      }, config.timerValue);
+    }
+
+    state.ledTimeout = setTimeout(ledFlash, state.onPause);
   },
 };
 
@@ -284,6 +299,7 @@ mqtt.on("connected", function () {
   mqtt.subscribe(config.mqtt.topics.status);
 
   state.ledStatus = "CASCADE";
+  state.ledColor = "RAINBOW";
 
   updateLights();
 
@@ -296,6 +312,13 @@ mqtt.on("message", function (pub) {
   if (pub.topic === config.mqtt.topics.status) {
     const message = pub.message.split(",");
     console.log(message);
+    if (
+      ["ON", "OFF", "CASCADE", "BOUNCE", "FADE_ON", "FLASH_ON"].indexOf(
+        message[0]
+      ) === -1
+    ) {
+      return;
+    }
     state.ledStatus = message[0];
     state.ledColor =
       message[1] === "RAINBOW" ? "RAINBOW" : hexToRGB(message[1]);
